@@ -1,0 +1,28 @@
+{
+  "name": "js-caching",
+  "version": "0.0.1",
+  "description": "Javascript Caching based on js-pipeline",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/colo/js-caching.git"
+  },
+  "keywords": [
+    "js",
+    "caching",
+    "pipeline",
+    "multistore"
+  ],
+  "author": "Luciano Bueno",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/colo/js-caching/issues"
+  },
+  "homepage": "https://github.com/colo/js-caching#readme",
+  "dependencies": {
+    "js-pipeline": "git+https://github.com/colo/js-pipeline.git"
+  }
+}

@@ -16,7 +16,9 @@ let debug = require('debug')('js-caching'),
     debug_internals = require('debug')('js-caching:Internals')
 
 let RethinkDBStoreIn = require('./stores/rethinkdb')
-let RethinkDBStoreOut = require('./stores/rethinkdb')
+let RethinkDBStoreOut = require('js-pipeline/output/rethinkdb')
+
+const uuidv5 = require('uuid/v5')
 
 let input_template = {
   suspended: true,//start suspended
@@ -47,6 +49,8 @@ let output_template = {
 module.exports = new Class({
   Extends: Pipeline,
 
+  NS: '2405a7f9-a8cc-4976-9e61-d9396ca67c1b',
+
   ON_GET: 'onGet',
   ON_SET: 'onSet',
   ON_DEL: 'onDel',
@@ -56,7 +60,11 @@ module.exports = new Class({
   options: {
     input: [],
 		filters: [],
-		output: [],
+		output: [
+      function(doc){
+        debug_internals('first output %o', doc)
+      }
+    ],
     stores: [
       {
         id: 'rethinkdb',
@@ -66,8 +74,10 @@ module.exports = new Class({
 						port: 28015,
 						db: 'test',
             table: 'cache',
+            module: RethinkDBStoreIn,
 					},
 				],
+        module: RethinkDBStoreOut,
       }
     ],
 
@@ -80,6 +90,11 @@ module.exports = new Class({
     this.fireEvent(this.ON_GET)
   },
   set: function(key, value, ttl, cb){
+    let _key = uuidv5(key, this.NS)
+
+    debug_internals('set %s', _key)
+    this.output({key: _key, data: value, metadata: {}})
+
     if(typeof cb == 'function')
       cb()
 
@@ -110,12 +125,12 @@ module.exports = new Class({
     Array.each(this.options.stores, function(store, index){
       let input = Object.merge(Object.clone(input_template), Object.clone(store))
       input.id = input_template.id + store.id
-      input.conn[0].module = RethinkDBStoreIn
+      // input.conn[0].module = RethinkDBStoreIn
       this.options.input.push({ poll: input })
 
       let output = Object.merge(Object.clone(output_template), Object.clone(store))
       output.id = output_template.id + store.id
-      output.module = RethinkDBStoreOut
+      // output.module = RethinkDBStoreOut
       this.options.output.push({ store: output })
 
     }.bind(this))

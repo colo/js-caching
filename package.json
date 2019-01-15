@@ -24,6 +24,7 @@
   "homepage": "https://github.com/colo/js-caching#readme",
   "dependencies": {
     "js-pipeline": "git+https://github.com/colo/js-pipeline.git",
-    "node-app-rethinkdb-client": "git+https://github.com/colo/node-app-rethinkdb-client.git"
+    "node-app-rethinkdb-client": "git+https://github.com/colo/node-app-rethinkdb-client.git",
+    "uuid": "^3.3.2"
   }
 }

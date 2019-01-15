@@ -1,7 +1,7 @@
 'use strict'
 let debug = require('debug')('js-caching:Test'),
-    debug_events = require('debug')('js-caching:Test:Events');
-    debug_internals = require('debug')('js-caching:Test:Internals');
+    debug_events = require('debug')('js-caching:Test:Events'),
+    debug_internals = require('debug')('js-caching:Test:Internals')
 
 let jscaching = require('../index')
 

@@ -12,21 +12,16 @@
 
 let Pipeline = require('js-pipeline')
 let debug = require('debug')('js-caching'),
-    debug_events = require('debug')('js-caching:Events');
-    debug_internals = require('debug')('js-caching:Internals');
+    debug_events = require('debug')('js-caching:Events'),
+    debug_internals = require('debug')('js-caching:Internals')
+
+let RethinkDBStoreIn = require('./stores/rethinkdb')
+let RethinkDBStoreOut = require('./stores/rethinkdb')
 
 let input_template = {
   suspended: true,//start suspended
   id: "input.",
-  conn: [
-    // Object.merge(
-    //   Object.clone(conn),
-    //   {
-    //     // path_key: 'os',
-    //     module: InputPollerRethinkDBHosts,
-    //   }
-    // )
-  ],
+  conn: [],
   connect_retry_count: -1,
   connect_retry_periodical: 1000,
   requests: {
@@ -38,24 +33,11 @@ let input_template = {
   // 		return cron.schedule('* * * * * *', dispatch);//every second
   // 	}
   // },
-},
+}
 
 let output_template = {
   id: "output.",
-  conn: [
-    // {
-    // 	//host: '127.0.0.1',
-    // 	host: 'elk',
-    // 	port: 5984,
-    // 	db: 'dashboard',
-    // 	opts: {
-    // 		cache: true,
-    // 		raw: false,
-    // 		forceSave: true,
-    // 	}
-    // },
-  ],
-  // module: require(path.join(process.cwd(), 'lib/pipeline/output/cradle')),
+  conn: [],
   buffer:{
     size: 0,
     expire:0
@@ -63,7 +45,7 @@ let output_template = {
 }
 
 module.exports = new Class({
-  Implements: [Pipeline],
+  Extends: Pipeline,
 
   ON_GET: 'onGet',
   ON_SET: 'onSet',
@@ -72,7 +54,24 @@ module.exports = new Class({
   ON_PRUNE: 'onPrune',
 
   options: {
-    stores: [Memory]
+    input: [],
+		filters: [],
+		output: [],
+    stores: [
+      {
+        id: 'rethinkdb',
+        conn: [
+					{
+            host: 'elk',
+						port: 28015,
+						db: 'test',
+            table: 'cache',
+					},
+				],
+      }
+    ],
+
+    ttl: 1000,
   },
   get: function(key, cb){
     if(typeof cb == 'function')
@@ -106,14 +105,24 @@ module.exports = new Class({
     this.fireEvent(this.ON_PRUNE)
   },
   initialize: function(options){
-    Array.each(options.stores, function(store, index){
-      let input = Object.clone(input_template)
-      options.input.push({ poll: input })
+    // this.setOptions(options)
 
-      let output = Object.clone(output_template)
-      options.output.push({ store: output })
+    Array.each(this.options.stores, function(store, index){
+      let input = Object.merge(Object.clone(input_template), Object.clone(store))
+      input.id = input_template.id + store.id
+      input.conn[0].module = RethinkDBStoreIn
+      this.options.input.push({ poll: input })
 
-    })
+      let output = Object.merge(Object.clone(output_template), Object.clone(store))
+      output.id = output_template.id + store.id
+      output.module = RethinkDBStoreOut
+      this.options.output.push({ store: output })
+
+    }.bind(this))
+
+
+    debug_internals('initialize %o', this.options.output)
     this.parent(options)
+
   },
 })

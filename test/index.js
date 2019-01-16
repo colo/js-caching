@@ -5,8 +5,37 @@ let debug = require('debug')('js-caching:Test'),
 
 let jscaching = require('../index')
 
-let cache = new jscaching({}, function(){
-  debug_internals('onInit')
+let cache = new jscaching()
+cache.addEvent('onConnect', function(){
+  debug_internals('onConnect')
+
+  // this.set('test2', 'value2', undefined, function(err, result){
+  //   if(err)
+  //     debug('set err %o', err)
+  //
+  //   debug('set %o', result)
+  // })
+  //
+  // this.set(['test2', 'test3'], 'value2', undefined, function(err, result){
+  //   if(err)
+  //     debug('set err %o', err)
+  //
+  //   debug('set %o', result)
+  // })
+  //
+  // this.set(['test2', 'test3'], ['value2', 'value3'], undefined, function(err, result){
+  //   if(err)
+  //     debug('set err %o', err)
+  //
+  //   debug('set %o', result)
+  // })
+
+  this.get(undefined, function(err, result){
+    if(err)
+      debug('get %o', err)
+
+    debug('get %o', result)
+  })
 
   this.get('test', function(err, result){
     if(err)
@@ -15,11 +44,11 @@ let cache = new jscaching({}, function(){
     debug('get %o', result)
   })
 
-  this.set('test', 'value', function(err, result){
+  this.get(['test', 'test3'], function(err, result){
     if(err)
-      debug('set err %o', err)
+      debug('get %o', err)
 
-    debug('set %o', result)
+    debug('get %o', result)
   })
 
   this.del('test', function(err, result){
@@ -43,4 +72,4 @@ let cache = new jscaching({}, function(){
 
     debug('prune %o', result)
   })
-})
+}.bind(cache))

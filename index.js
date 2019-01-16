@@ -93,7 +93,7 @@ module.exports = new Class({
     let _key = uuidv5(key, this.NS)
 
     debug_internals('set %s', _key)
-    this.output({key: _key, data: value, metadata: {}})
+    this.output({id: _key, data: value, metadata: {}})
 
     if(typeof cb == 'function')
       cb()
@@ -119,7 +119,7 @@ module.exports = new Class({
 
     this.fireEvent(this.ON_PRUNE)
   },
-  initialize: function(options){
+  initialize: function(options, cb){
     // this.setOptions(options)
 
     Array.each(this.options.stores, function(store, index){
@@ -137,7 +137,7 @@ module.exports = new Class({
 
 
     debug_internals('initialize %o', this.options.output)
-    this.parent(options)
+    this.parent(options, cb)
 
   },
 })

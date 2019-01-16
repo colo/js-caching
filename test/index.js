@@ -5,32 +5,31 @@ let debug = require('debug')('js-caching:Test'),
 
 let jscaching = require('../index')
 
-let cache = new jscaching()
-cache.addEvent('onInit', function(){
+let cache = new jscaching({}, function(){
   debug_internals('onInit')
 
-  cache.get('test', function(err, result){
+  this.get('test', function(err, result){
     if(err)
       debug('get %o', err)
 
     debug('get %o', result)
   })
 
-  cache.set('test', 'value', function(err, result){
+  this.set('test', 'value', function(err, result){
     if(err)
       debug('set err %o', err)
 
     debug('set %o', result)
   })
 
-  cache.del('test', function(err, result){
+  this.del('test', function(err, result){
     if(err)
       debug('del err %o', err)
 
     debug('del %o', result)
   })
 
-  cache.reset(function(err, result){
+  this.reset(function(err, result){
     if(err)
       debug('reset err %o', err)
 
@@ -38,7 +37,7 @@ cache.addEvent('onInit', function(){
   })
 
 
-  cache.prune(function(err, result){
+  this.prune(function(err, result){
     if(err)
       debug('prune err %o', err)
 

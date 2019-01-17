@@ -1,205 +1,382 @@
 'use strict'
 
-let App = require('node-app-rethinkdb-client')
+let Input = require('node-app-rethinkdb-client')
+let Output = require('js-pipeline/output/rethinkdb')
 
 var debug = require('debug')('js-caching:Stores:RethinkDB');
 var debug_internals = require('debug')('js-caching:Stores:RethinkDB:Internals');
 var debug_events = require('debug')('js-caching:Stores:RethinkDB:Events');
 
 
-module.exports = new Class({
-  Extends: App,
+module.exports = {
+  input: new Class({
+    Extends: Input,
 
-  options: {
+    options: {
 
-		id: 'Stores:RethinkDB',
+  		id: 'Stores:RethinkDB',
 
-		requests : {
-			periodical: [
-			],
-      once: [{
-        get: function(req, next, app){
-          if(req && req.type == 'get'){
-            debug_internals('get', req, app.options.table)
+  		requests : {
+  			periodical: [
+          {
+            prune_docs: function(req, next, app){
+              // if(req && req.type == 'prune'){
+                debug_internals('prune_docs', req, app.options.table)
 
-            if(Array.isArray(req.id)){
-              app.getAll({
-                _extras: {type: req.type, id: req.id},
-                uri: app.options.db+'/'+app.options.table,
-                args: req.id
-              })
+
+                app.table({
+                  _extras: {type: 'prune'},
+                  uri: app.options.db,
+                  args: app.options.table
+                })
+
+              // }
+
             }
-            else{
-              app.get({
-                _extras: {type: req.type, id: req.id},
-                uri: app.options.db+'/'+app.options.table,
-                args: [req.id]
-              })
+          },
+  			],
+        once: [
+          {
+            get_doc: function(req, next, app){
+              if(req && req.type == 'get'){
+                debug_internals('get', req, app.options.table)
+
+                if(Array.isArray(req.id)){
+                  app.getAll({
+                    _extras: {type: req.type, id: req.id, key: req.key},
+                    uri: app.options.db+'/'+app.options.table,
+                    args: req.id
+                  })
+                }
+                else{
+                  app.get({
+                    _extras: {type: req.type, id: req.id, key: req.key},
+                    uri: app.options.db+'/'+app.options.table,
+                    args: [req.id]
+                  })
+                }
+              }
+
             }
-          }
-        }
-      }]
+          },
+          {
+            del_doc: function(req, next, app){
+              if(req && req.type == 'del'){
+                debug_internals('del', req, app.options.table)
 
-		},
+                if(Array.isArray(req.id)){
+                  app.getAll({
+                    _extras: {type: req.type, id: req.id, key: req.key},
+                    uri: app.options.db+'/'+app.options.table,
+                    args: req.id
+                  })
+                }
+                else{
+                  app.get({
+                    _extras: {type: req.type, id: req.id, key: req.key},
+                    uri: app.options.db+'/'+app.options.table,
+                    args: [req.id]
+                  })
+                }
+              }
 
-		routes: {
+              // next()
+            }
+          },
+          {
+            prune_docs: function(req, next, app){
+              if(req && req.type == 'prune'){
+                debug_internals('prune_docs', req, app.options.table)
 
-      // distinct: [{
-      //   path: ':database/:table',
-      //   callbacks: ['distinct']
-      // }],
 
-      get: [{
-        path: ':database/:table',
-        callbacks: ['get_doc']
-      }],
-      getAll: [{
-        path: ':database/:table',
-        callbacks: ['get_doc']
-      }],
-		},
+                app.table({
+                  _extras: {type: req.type},
+                  uri: app.options.db,
+                  args: app.options.table
+                })
 
-  },
-  get_doc: function(err, resp, params){
-    debug_internals('get_doc', params.options)
+              }
 
-    if(err){
-      debug_internals('get_doc err', err)
+            }
+          },
+      ]
 
-			if(params.uri != ''){
-				this.fireEvent('on'+params.uri.charAt(0).toUpperCase() + params.uri.slice(1)+'Error', err);//capitalize first letter
-			}
-			else{
-				this.fireEvent('onGetError', err);
-			}
+  		},
 
-			this.fireEvent(this.ON_DOC_ERROR, err);
+  		routes: {
 
-			this.fireEvent(
-				this[
-					'ON_'+this.options.requests.current.type.toUpperCase()+'_DOC_ERROR'
-				],
-				err
-			);
-    }
-    else{
-      if(params.options._extras.type == 'get'){
-        if(Array.isArray(params.options._extras.id)){
-          resp.toArray(function(err, arr){
-            debug_internals('get_doc count', arr)
-            this.fireEvent(
-  						this[
-  							'ON_'+this.options.requests.current.type.toUpperCase()+'_DOC'
-  						],
-  						[arr, {id: this.id, type: params.options._extras.type, input_type: this, app: this}]
-  					)
-          }.bind(this))
-        }
-        else{
-          debug_internals('get_doc count single', resp)
+        // distinct: [{
+        //   path: ':database/:table',
+        //   callbacks: ['distinct']
+        // }],
+
+        table: [{
+          path: ':database',
+          callbacks: ['prune']
+        }],
+        get: [{
+          path: ':database/:table',
+          callbacks: ['get_doc']
+        }],
+        getAll: [{
+          path: ':database/:table',
+          callbacks: ['get_doc']
+        }],
+  		},
+
+    },
+    prune: function(err, resp, params){
+      debug_internals('prune', params.options)
+
+      if(err){
+        debug_internals('get_doc err', err)
+
+  			if(params.uri != ''){
+  				this.fireEvent('on'+params.uri.charAt(0).toUpperCase() + params.uri.slice(1)+'Error', err);//capitalize first letter
+  			}
+  			else{
+  				this.fireEvent('onGetError', err);
+  			}
+
+  			this.fireEvent(this.ON_DOC_ERROR, err);
+
+  			this.fireEvent(
+  				this[
+  					'ON_'+this.options.requests.current.type.toUpperCase()+'_DOC_ERROR'
+  				],
+  				err
+  			);
+      }
+      else{
+        let type = params.options._extras.type
+
+        resp.toArray(function(err, arr){
+          debug_internals('prune count', arr)
+
+          Array.each(arr, function(d){
+            if(!d.metadata) d.metadata = {expire: 0}
+
+            // d.metadata.expire = 0
+
+          })
+
+
           this.fireEvent(
             this[
               'ON_'+this.options.requests.current.type.toUpperCase()+'_DOC'
             ],
-            [resp, {id: this.id, type: params.options._extras.type, input_type: this, app: this}]
+            [arr, {id: this.id, type: type, input_type: this, app: this}]
           )
+        }.bind(this))
 
+          // if(resp.length > 0){
+          //
+          //   resp.toArray(function(err, arr){
+          //     debug_internals('prune count', arr)
+          //
+          //     Array.each(arr, function(d){
+          //       if(!d.metadata) d.metadata = {}
+          //
+          //       d.metadata.expire = 0
+          //
+          //     })
+          //
+          //
+          //     this.fireEvent(
+    			// 			this[
+    			// 				'ON_'+this.options.requests.current.type.toUpperCase()+'_DOC'
+    			// 			],
+    			// 			[arr, {id: this.id, type: type, input_type: this, app: this}]
+    			// 		)
+          //   }.bind(this))
+          // }
+          // else{
+          //   debug_internals('prune count single', resp)
+          //
+          //
+          //   this.fireEvent(
+          //     this[
+          //       'ON_'+this.options.requests.current.type.toUpperCase()+'_DOC'
+          //     ],
+          //     [resp, {id: this.id, type: type, input_type: this, app: this}]
+          //   )
+          //
+          //
+          // }
+
+
+
+
+
+      }
+    },
+    get_doc: function(err, resp, params){
+      debug_internals('get_doc', params.options)
+
+      if(err){
+        debug_internals('get_doc err', err)
+
+  			if(params.uri != ''){
+  				this.fireEvent('on'+params.uri.charAt(0).toUpperCase() + params.uri.slice(1)+'Error', err);//capitalize first letter
+  			}
+  			else{
+  				this.fireEvent('onGetError', err);
+  			}
+
+  			this.fireEvent(this.ON_DOC_ERROR, err);
+
+  			this.fireEvent(
+  				this[
+  					'ON_'+this.options.requests.current.type.toUpperCase()+'_DOC_ERROR'
+  				],
+  				err
+  			);
+      }
+      else{
+        let type = params.options._extras.type
+        if(type == 'get' || type == 'del'){
+          if(Array.isArray(params.options._extras.id)){
+
+            resp.toArray(function(err, arr){
+              debug_internals('get_doc count', arr)
+
+              if(type == 'del'){//force deletion by setting expire = 0
+                Array.each(arr, function(d){
+                  if(!d.metadata) d.metadata = {}
+
+                  d.metadata.expire = 0
+
+                })
+              }
+
+              this.fireEvent(
+    						this[
+    							'ON_'+this.options.requests.current.type.toUpperCase()+'_DOC'
+    						],
+    						[arr, {id: this.id, type: type, input_type: this, app: this}]
+    					)
+            }.bind(this))
+          }
+          else{
+            debug_internals('get_doc count single', resp)
+
+            if(type == 'del' && resp){//force deletion by setting expire = 0
+              if(!resp.metadata) resp.metadata = {}
+              resp.metadata.expire = 0
+            }
+
+            if(resp == null){
+              //we need to return the asked keys
+              if(params.options.args.length > 1){
+                resp = []
+                Array.each(params.options.args, function(arg, index){
+                  resp.push({id: arg, metadata: {key: params.options._extras.key[index]}})
+                })
+              }
+              else{
+                resp = {id: params.options.args[0], metadata: { key: params.options._extras.key }}
+              }
+            }
+            this.fireEvent(
+              this[
+                'ON_'+this.options.requests.current.type.toUpperCase()+'_DOC'
+              ],
+              [resp, {id: this.id, type: type, input_type: this, app: this}]
+            )
+
+
+          }
 
         }
 
+
+
+      }
+    },
+
+    initialize: function(options){
+      debug_internals('initialize %o', options)
+
+  		this.parent(options);//override default options
+
+  		this.log('js-caching-rethinkdb', 'info', 'js-caching-rethinkdb started');
+
+    },
+
+  }),
+  output: new Class({
+    Extends: Output,
+
+    ON_DOC_DELETED: 'onDocDeleted',
+    ON_DELETE_DOC: 'onDeleteDoc',
+
+    options: {
+      buffer:{
+        size: 0,
+        expire:0
+      },
+      delete: {durability: 'hard', returnChanges: 'always'},
+    },
+
+    initialize: function(options){
+      this.parent(options)
+      this.addEvent(this.ON_DELETE_DOC, function(doc){
+  			debug_events('this.ON_DELETE_DOC %o', doc);
+
+  			this.delete(doc);
+  		}.bind(this));
+    },
+    delete: function(doc){
+
+      Array.each(this.conns, function(conn, index){
+        // let table = this.options.conn[index].table
+        let db = this.options.conn[index].db
+        let table = this.options.conn[index].table
+        let accept = this.options.conn[index].accept
+
+        debug_internals('delete %s %s %o', db, table, this.options.conn[index])
+        if(accept === true){
+          this._delete_docs(doc, index);
+        }
+        else{
+          let _delete = function(){
+            this._delete_docs(doc, index);
+            this.removeEvent(this.ON_ACCEPT, _delete)
+          }.bind(this)
+
+          this.addEvent(this.ON_ACCEPT, _delete)
+        }
+
+      }.bind(this));
+    },
+    _delete_docs: function(doc, index){
+  		debug_internals('_delete_docs %o %s %o', doc, index, this.options.insert);
+
+      let db = this.options.conn[index].db
+      let table = this.options.conn[index].table
+      let conn = this.conns[index]
+
+      if(Array.isArray(doc)){
+        this.r.db(db).table(table).getAll(this.r.args(doc)).delete(this.options.delete).run(conn, function(err, result){
+          debug_internals('delete result %o', err, result);
+          this.fireEvent(this.ON_DOC_DELETED, [err, result])
+        }.bind(this))
+      }
+      else if(doc){
+        this.r.db(db).table(table).get(doc).delete(this.options.delete).run(conn, function(err, result){
+          debug_internals('delete result %o', err, result);
+          this.fireEvent(this.ON_DOC_DELETED, [err, result])
+        }.bind(this))
+
+      }
+      else{
+        this.r.db(db).table(table).delete().run(conn, function(err, result){
+          debug_internals('delete result %o', err, result);
+          this.fireEvent(this.ON_DOC_DELETED, [err, result])
+        }.bind(this))
       }
 
 
-
-    }
-  },
-
-  // distinct: function(err, resp, params){
-  //   debug_internals('distinct', params.options)
-  //
-  //   if(err){
-  //     debug_internals('distinct err', err)
-  //
-	// 		if(params.uri != ''){
-	// 			this.fireEvent('on'+params.uri.charAt(0).toUpperCase() + params.uri.slice(1)+'Error', err);//capitalize first letter
-	// 		}
-	// 		else{
-	// 			this.fireEvent('onGetError', err);
-	// 		}
-  //
-	// 		this.fireEvent(this.ON_DOC_ERROR, err);
-  //
-	// 		this.fireEvent(
-	// 			this[
-	// 				'ON_'+this.options.requests.current.type.toUpperCase()+'_DOC_ERROR'
-	// 			],
-	// 			err
-	// 		);
-  //   }
-  //   else{
-  //
-  //     resp.toArray(function(err, arr){
-  //       debug_internals('distinct count', arr)
-  //
-  //
-  //       if(params.options._extras == 'path'){
-  //         if(arr.length == 0){
-  // 					debug_internals('No paths yet');
-  // 				}
-  // 				else{
-  //
-  //           this.paths = []
-  //
-  // 					Array.each(arr, function(row, index){
-  // 						// debug_internals('Path %s', row);
-  //
-  //             if(
-  //               (
-  //                 !this.blacklist_path
-  //                 || (this.blacklist_path && this.blacklist_path.test(row) == false)
-  //               )
-  //               && !this.paths.contains(row)
-  //             )
-  //               this.paths.push(row)
-  //
-  // 					}.bind(this));
-  //
-  // 					debug_internals('PATHs %o', this.paths);
-  // 				}
-  // 			}
-  //       else if(params.options._extras == 'host'){
-  //         if(arr.length == 0){
-  // 					debug_internals('No hosts yet');
-  // 				}
-  // 				else{
-  //
-  //           Array.each(arr, function(row, index){
-  //             // debug_internals('Host %s', row);
-  //             //this.hosts.push({name: doc.key, last: null});
-  //
-  //             // if(this.hosts[doc.key] == undefined) this.hosts[doc.key] = -1;
-  //             if(!this.hosts.contains(row))
-  //               this.hosts.push(row)
-  //
-  //           }.bind(this));
-  //
-  //           debug_internals('HOSTs %o', this.hosts);
-  // 				}
-  //       }
-  //
-  //     }.bind(this))
-  //
-  //
-  //   }
-  // },
-
-  initialize: function(options){
-    debug_internals('initialize %o', options)
-
-		this.parent(options);//override default options
-
-		this.log('js-caching-rethinkdb', 'info', 'js-caching-rethinkdb started');
-
-  },
-
-});
+  	},
+  })
+}

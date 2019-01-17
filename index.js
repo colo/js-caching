@@ -15,8 +15,11 @@ let debug = require('debug')('js-caching'),
     debug_events = require('debug')('js-caching:Events'),
     debug_internals = require('debug')('js-caching:Internals')
 
-let RethinkDBStoreIn = require('./stores/rethinkdb')
-let RethinkDBStoreOut = require('js-pipeline/output/rethinkdb')
+// let RethinkDBStoreIn = require('./stores/rethinkdb')
+// let RethinkDBStoreOut = require('js-pipeline/output/rethinkdb')
+let RethinkDBStoreIn = require('./stores/rethinkdb').input
+let RethinkDBStoreOut = require('./stores/rethinkdb').output
+
 
 const uuidv5 = require('uuid/v5')
 const uuidv4 = require('uuid/v4')
@@ -40,11 +43,7 @@ let input_template = {
 
 let output_template = {
   id: "output.",
-  conn: [],
-  buffer:{
-    size: 0,
-    expire:0
-  }
+  conn: []
 }
 
 module.exports = new Class({
@@ -53,7 +52,10 @@ module.exports = new Class({
   NS: '2405a7f9-a8cc-4976-9e61-d9396ca67c1b',
 
   ON_CONNECT: 'onConnect',
-  ON_INTERNAL_OUTPUT: 'onInternalOutput',
+  ON_INTERNAL_GET_OUTPUT: 'onInternalGetOutput',
+  ON_INTERNAL_DEL_OUTPUT: 'onInternalDelOutput',
+  ON_INTERNAL_PRUNE_OUTPUT: 'onInternalPruneOutput',
+
   ON_GET: 'onGet',
   ON_SET: 'onSet',
   ON_DEL: 'onDel',
@@ -64,38 +66,145 @@ module.exports = new Class({
   __output_connected: false,
 
   options: {
+    suspended: true,
     input: [],
 		filters: [
       function(doc, opts, next, pipeline){
         let { type, input, input_type, app } = opts
-        debug_internals('first filter %o', type)
+        debug_internals('first filter %s %o', type, doc)
 
-        let output = {key: undefined, data: undefined}
-        let _concat_key = ''
-        if(Array.isArray(doc)){
-          output.data = []
-          Array.each(doc, function(d){
-            _concat_key += d.metadata.key
-            output.data.push(d.data)
-          })
-        }
-        else{
-          _concat_key = doc.metadata.key
-          output.data = doc.data
-        }
-        _concat_key = uuidv5(_concat_key, pipeline.NS)
-        output.key = _concat_key
+        if(type == 'get' || type == 'del' || type == 'prune'){
+          let err = undefined
+          let output = {key: undefined, data: undefined}
+          let _concat_key = ''
+          if(Array.isArray(doc) && doc.length > 0){
 
-        pipeline.outputs[0](output)
+            Array.each(doc, function(d){
+              if(d.metadata){
+              _concat_key += d.metadata.key
+                if(d.metadata.expire !== undefined && d.metadata.expire <= Date.now()){
+                  /**
+                  * @todo implement 404
+                  **/
+                  if(!err)
+                    err = {
+                      status: 419,// Page Expired (Laravel Framework)
+                      message: 'Expired',
+                      data: []
+                    }
+
+                  // err.data.push(d.data)
+                  err.data.push({value: d.data, key: d.metadata.key })
+                }
+                else{
+                  if(!output.data) output.data = []
+                  output.status = 200,
+                  output.message = 'Ok',
+                  output.data.push(d.data)
+                }
+              }
+            })
+          }
+          else if(Array.isArray(doc) && doc.length == 0){
+            err = {
+              status: 404,// Page Expired (Laravel Framework)
+              message: 'Not Found',
+            }
+          }
+          else if(doc && doc.metadata){
+            _concat_key = doc.metadata.key
+
+
+            if(doc.metadata.expire !== undefined && doc.metadata.expire <= Date.now()){
+              err = {
+                status: 419,// Page Expired (Laravel Framework)
+                message: 'Expired',
+                data: [{value: doc.data, key: doc.metadata.key }]
+
+              }
+
+              // err = {
+              //   message: 'Gone',
+              //   /**
+              //   * The requested resource is no longer available at the server and no forwarding
+              //   address is known. This condition is expected to be considered permanent.
+              //   **/
+              //   status: 410,
+              //
+              // }
+            }
+            else if(!doc.data){
+              err = {
+                status: 404,// Page Expired (Laravel Framework)
+                message: 'Not Found',
+                data: [{key: doc.metadata.key }]
+              }
+            }
+            else{
+              output.status = 200,
+              output.message = 'Ok',
+              output.data = doc.data
+            }
+          }
+
+          if(_concat_key){
+            _concat_key = uuidv5(_concat_key, pipeline.NS)
+            output.key = _concat_key
+
+
+          }
+          pipeline.outputs[0]({type: type, err: err, doc: output})
+        }
+
       }
     ],
 		output: [
-      function(doc){
-        debug_internals('first output %o', doc)
-        // if(Array.isArray(doc))
-        //   doc = [doc]
+      function(payload){
+        let {type, err, doc} = payload
 
-        this.fireEvent(this.ON_INTERNAL_OUTPUT+'.'+doc.key, [null, doc.data])
+        if(type == 'get' || type == 'del' || type == 'prune'){
+          debug_internals('first output %o', payload)
+          // if(Array.isArray(doc))
+          //   doc = [doc]
+          if(err && err.status == 419){
+            let _delete_keys = err.data.map(function(item, index){ return uuidv5(item.key, this.NS) }.bind(this))
+            Array.each(this.outputs, function(output, index){
+              if(index != 0)
+                output.fireEvent(output.ON_DELETE_DOC, [_delete_keys])
+            }.bind(this))
+
+            if(type == 'del' || type == 'prune'){//on del switch err & doc.data
+              if(!err.data){//means there was no doc(s)
+                err = {
+                  status: 404,
+                  message: 'Not Found',
+                  key: err.metadata.key
+                }
+              }
+              else{
+                doc.data = Array.clone(err.data)
+                err = null
+              }
+            }
+          }
+
+          switch (type) {
+            case 'get':
+              this.fireEvent(this.ON_INTERNAL_GET_OUTPUT, [err, doc.data])
+              break;
+
+            case 'del':
+              this.fireEvent(this.ON_INTERNAL_DEL_OUTPUT, [err, doc.data])
+              break;
+
+            case 'prune':
+              this.fireEvent(this.ON_INTERNAL_PRUNE_OUTPUT, [err, doc.data])
+              break;
+          }
+
+
+        }
+
       }
     ],
     stores: [
@@ -114,7 +223,7 @@ module.exports = new Class({
       }
     ],
 
-    ttl: 1000,
+    ttl: 10000,
   },
   get: function(key, cb){
 
@@ -129,15 +238,18 @@ module.exports = new Class({
       let _get = {}
       let _concat_key = ''
 
-      let input = {type: 'get', id: undefined}
+      let input = {type: 'get', id: undefined, key: undefined}
       if(Array.isArray(key)){
         input.id = []
+        input.key = []
         Array.each(key, function(_key){
           _concat_key += _key
+          input.key.push(_key)
           input.id.push(uuidv5(_key, this.NS))
         }.bind(this))
       }
       else{
+        input.key = key
         input.id = uuidv5(key, this.NS)
         _concat_key = key
       }
@@ -145,7 +257,7 @@ module.exports = new Class({
 
       _get[_concat_key] = function(err, result){
         debug_internals('_get %o %o', err, result)
-        this.removeEvent(this.ON_INTERNAL_OUTPUT, _get[_concat_key])
+        this.removeEvent(this.ON_INTERNAL_GET_OUTPUT+'.'+_concat_key, _get[_concat_key])
 
         this.fireEvent(this.ON_GET, [err, result])
 
@@ -153,7 +265,7 @@ module.exports = new Class({
           cb(err, result)
       }.bind(this)
 
-      this.addEvent(this.ON_INTERNAL_OUTPUT+'.'+_concat_key, _get[_concat_key])
+      this.addEvent(this.ON_INTERNAL_GET_OUTPUT+'.'+_concat_key, _get[_concat_key])
       this.fireEvent(this.ON_ONCE, input)
     }
 
@@ -201,23 +313,112 @@ module.exports = new Class({
 
   },
   del: function(key, cb){
-    if(typeof cb == 'function')
-      cb()
 
-    this.fireEvent(this.ON_DEL)
+    if(!key){
+      // _get('you need to provide a "key" ', null)
+      this.fireEvent(this.ON_DEL, ['you need to provide a "key" ', null])
+
+      if(typeof cb == 'function')
+        cb('you need to provide a "key" ', null)
+    }
+    else{
+      let _del = {}
+      let _concat_key = ''
+
+      let input = {type: 'del', id: undefined, key: undefined}
+      if(Array.isArray(key)){
+        input.id = []
+        input.key = []
+        Array.each(key, function(_key){
+          _concat_key += _key
+          input.key.push(_key)
+          input.id.push(uuidv5(_key, this.NS))
+        }.bind(this))
+      }
+      else{
+        input.key = key
+        input.id = uuidv5(key, this.NS)
+        _concat_key = key
+      }
+      debug_internals('_del %s', _concat_key)
+
+      _concat_key = uuidv5(_concat_key, this.NS)
+
+      _del[_concat_key] = function(err, result){
+        debug_internals('_del %o %o', err, result)
+
+        this.removeEvent(this.ON_INTERNAL_DEL_OUTPUT+'.'+_concat_key, _del[_concat_key])
+
+        this.fireEvent(this.ON_DEL, [err, result])
+
+        if(typeof cb == 'function')
+          cb(err, result)
+      }.bind(this)
+
+
+
+      this.addEvent(this.ON_INTERNAL_DEL_OUTPUT+'.'+_concat_key, _del[_concat_key])
+      this.fireEvent(this.ON_ONCE, input)
+    }
+
+
   },
   reset: function(cb){
-    if(typeof cb == 'function')
-      cb()
 
-    this.fireEvent(this.ON_RESET)
+    let _outputs_status = []
+
+    let _reset = function(err, result, output){
+
+      _outputs_status[output] = {err:err, result: result}
+      debug_internals('_reset %o %o %d %d %d ', err, result, output, _outputs_status.length, this.outputs.length)
+
+      if(_outputs_status.length == this.outputs.length -1){
+        // debug_internals('_reset %o %o %d', err, result, output)
+
+        let err = _outputs_status.map(function(item, index){return item.err})
+        let result = _outputs_status.map(function(item, index){return item.result})
+        err = err.clean()
+        result = result.clean()
+        if(err.length == 0) err = null
+        if(result.length == 0) result = null
+
+        this.fireEvent(this.ON_RESET, [err, result])
+
+        if(typeof cb == 'function')
+          cb(err, result)
+      }
+    }.bind(this)
+    Array.each(this.outputs, function(output, index){
+      if(index != 0){
+        output.addEvent(output.ON_DOC_DELETED, function(err, result){
+          _reset(err, result, index - 1)//index - 1 becasue we ommit 0
+        }.bind(this))
+        output.fireEvent(output.ON_DELETE_DOC)
+      }
+    }.bind(this))
+
+
   },
   prune: function(cb){
 
-    if(typeof cb == 'function')
-      cb()
+    let input = {type: 'prune', id: undefined, key: undefined}
 
-    this.fireEvent(this.ON_PRUNE)
+
+    let _prune = function(err, result){
+      debug_internals('_prune %o %o', err, result)
+      this.removeEvent(this.ON_INTERNAL_PRUNE_OUTPUT, _prune)
+
+      this.fireEvent(this.ON_PRUNE, [err, result])
+
+      if(typeof cb == 'function')
+        cb(err, result)
+    }.bind(this)
+
+    this.addEvent(this.ON_INTERNAL_PRUNE_OUTPUT, _prune)
+    this.fireEvent(this.ON_ONCE, input)
+
+
+
   },
   _input_output_connected(type){
     debug_internals('_input_output_connected ... %s', type)
@@ -227,6 +428,9 @@ module.exports = new Class({
   },
   initialize: function(options){
     // this.setOptions(options)
+    let suspended = (options && options.suspended !== undefined) ? options.suspended : this.options.suspended
+    input_template.suspended = suspended
+    debug_internals('initialize ', suspended)
 
     Array.each(this.options.stores, function(store, index){
       let input = Object.merge(Object.clone(input_template), Object.clone(store))

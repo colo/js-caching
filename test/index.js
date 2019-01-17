@@ -5,7 +5,8 @@ let debug = require('debug')('js-caching:Test'),
 
 let jscaching = require('../index')
 
-let cache = new jscaching()
+let cache = new jscaching({ suspended: false })
+
 cache.addEvent('onConnect', function(){
   debug_internals('onConnect')
 
@@ -16,67 +17,91 @@ cache.addEvent('onConnect', function(){
     debug('set %o', result)
   })
 
-  this.set('test2', 'value2', undefined, function(err, result){
+  // this.set('test2', 'value2', undefined, function(err, result){
+  //   if(err)
+  //     debug('set err %o', err)
+  //
+  //   debug('set %o', result)
+  // })
+  //
+  // this.set(['test2', 'test3'], 'value2', undefined, function(err, result){
+  //   if(err)
+  //     debug('set err %o', err)
+  //
+  //   debug('set %o', result)
+  // })
+  //
+  this.set(['test2', 'test3'], ['value2', 'value3'], 1000, function(err, result){
     if(err)
       debug('set err %o', err)
 
     debug('set %o', result)
   })
+  //
+  // this.get(undefined, function(err, result){
+  //   if(err)
+  //     debug('get %o', err)
+  //
+  //   debug('get %o', result)
+  // })
 
-  this.set(['test2', 'test3'], 'value2', undefined, function(err, result){
-    if(err)
-      debug('set err %o', err)
+  // this.get('test', function(err, result){
+  //   if(err)
+  //     debug('get %o', err)
+  //
+  //   debug('get %o', result)
+  //
+  //   cache.del('test', function(err, result){
+  //     if(err)
+  //       debug('del err %o', err)
+  //
+  //     debug('del %o', result)
+  //   })
+  // })
 
-    debug('set %o', result)
-  })
+  // this.get(['test', 'test3'], function(err, result){
+  //   if(err)
+  //     debug('get %o', err)
+  //
+  //   debug('get %o', result)
+  // })
 
-  this.set(['test2', 'test3'], ['value2', 'value3'], undefined, function(err, result){
-    if(err)
-      debug('set err %o', err)
+  // this.del(undefined, function(err, result){
+  //   if(err)
+  //     debug('del err %o', err)
+  //
+  //   debug('del %o', result)
+  // })
 
-    debug('set %o', result)
-  })
-
-  this.get(undefined, function(err, result){
-    if(err)
-      debug('get %o', err)
-
-    debug('get %o', result)
-  })
-
-  this.get('test', function(err, result){
-    if(err)
-      debug('get %o', err)
-
-    debug('get %o', result)
-  })
-
-  this.get(['test', 'test3'], function(err, result){
-    if(err)
-      debug('get %o', err)
-
-    debug('get %o', result)
-  })
-
-  this.del('test', function(err, result){
-    if(err)
-      debug('del err %o', err)
-
-    debug('del %o', result)
-  })
-
-  this.reset(function(err, result){
-    if(err)
-      debug('reset err %o', err)
-
-    debug('reset %o', result)
-  })
+  // this.del('test', function(err, result){
+  //   if(err)
+  //     debug('del err %o', err)
+  //
+  //   debug('del %o', result)
+  //
+  //   this.get('test', function(err, result){
+  //     if(err)
+  //       debug('get %o', err)
+  //
+  //     debug('get %o', result)
+  //
+  //
+  //   })
+  //
+  // }.bind(this))
+  //
+  // this.reset(function(err, result){
+  //   if(err)
+  //     debug('reset err %o', err)
+  //
+  //   debug('reset %o', result)
+  // })
 
 
-  this.prune(function(err, result){
-    if(err)
-      debug('prune err %o', err)
-
-    debug('prune %o', result)
-  })
+  // this.prune(function(err, result){
+  //   if(err)
+  //     debug('prune err %o', err)
+  //
+  //   debug('prune %o', result)
+  // })
 }.bind(cache))

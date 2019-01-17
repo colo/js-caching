@@ -19,6 +19,7 @@ let RethinkDBStoreIn = require('./stores/rethinkdb')
 let RethinkDBStoreOut = require('js-pipeline/output/rethinkdb')
 
 const uuidv5 = require('uuid/v5')
+const uuidv4 = require('uuid/v4')
 
 let input_template = {
   suspended: true,//start suspended
@@ -52,6 +53,7 @@ module.exports = new Class({
   NS: '2405a7f9-a8cc-4976-9e61-d9396ca67c1b',
 
   ON_CONNECT: 'onConnect',
+  ON_INTERNAL_OUTPUT: 'onInternalOutput',
   ON_GET: 'onGet',
   ON_SET: 'onSet',
   ON_DEL: 'onDel',
@@ -63,10 +65,37 @@ module.exports = new Class({
 
   options: {
     input: [],
-		filters: [],
+		filters: [
+      function(doc, opts, next, pipeline){
+        let { type, input, input_type, app } = opts
+        debug_internals('first filter %o', type)
+
+        let output = {key: undefined, data: undefined}
+        let _concat_key = ''
+        if(Array.isArray(doc)){
+          output.data = []
+          Array.each(doc, function(d){
+            _concat_key += d.metadata.key
+            output.data.push(d.data)
+          })
+        }
+        else{
+          _concat_key = doc.metadata.key
+          output.data = doc.data
+        }
+        _concat_key = uuidv5(_concat_key, pipeline.NS)
+        output.key = _concat_key
+
+        pipeline.outputs[0](output)
+      }
+    ],
 		output: [
       function(doc){
         debug_internals('first output %o', doc)
+        // if(Array.isArray(doc))
+        //   doc = [doc]
+
+        this.fireEvent(this.ON_INTERNAL_OUTPUT+'.'+doc.key, [null, doc.data])
       }
     ],
     stores: [
@@ -89,30 +118,42 @@ module.exports = new Class({
   },
   get: function(key, cb){
 
-    let _get = function(err, result){
-      debug_internals('_get %o %o', err, result)
-      this.removeEvent(this.ON_ONCE, _get)
-
-      this.fireEvent(this.ON_GET, [err, result])
+    if(!key){
+      // _get('you need to provide a "key" ', null)
+      this.fireEvent(this.ON_GET, ['you need to provide a "key" ', null])
 
       if(typeof cb == 'function')
-        cb(err, result)
-    }.bind(this)
-
-    if(!key){
-      _get('you need to provide a "key" ', null)
+        cb('you need to provide a "key" ', null)
     }
     else{
+      let _get = {}
+      let _concat_key = ''
+
       let input = {type: 'get', id: undefined}
       if(Array.isArray(key)){
         input.id = []
         Array.each(key, function(_key){
+          _concat_key += _key
           input.id.push(uuidv5(_key, this.NS))
         }.bind(this))
       }
       else{
         input.id = uuidv5(key, this.NS)
+        _concat_key = key
       }
+      _concat_key = uuidv5(_concat_key, this.NS)
+
+      _get[_concat_key] = function(err, result){
+        debug_internals('_get %o %o', err, result)
+        this.removeEvent(this.ON_INTERNAL_OUTPUT, _get[_concat_key])
+
+        this.fireEvent(this.ON_GET, [err, result])
+
+        if(typeof cb == 'function')
+          cb(err, result)
+      }.bind(this)
+
+      this.addEvent(this.ON_INTERNAL_OUTPUT+'.'+_concat_key, _get[_concat_key])
       this.fireEvent(this.ON_ONCE, input)
     }
 

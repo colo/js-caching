@@ -9,26 +9,33 @@ let cache = new jscaching()
 cache.addEvent('onConnect', function(){
   debug_internals('onConnect')
 
-  // this.set('test2', 'value2', undefined, function(err, result){
-  //   if(err)
-  //     debug('set err %o', err)
-  //
-  //   debug('set %o', result)
-  // })
-  //
-  // this.set(['test2', 'test3'], 'value2', undefined, function(err, result){
-  //   if(err)
-  //     debug('set err %o', err)
-  //
-  //   debug('set %o', result)
-  // })
-  //
-  // this.set(['test2', 'test3'], ['value2', 'value3'], undefined, function(err, result){
-  //   if(err)
-  //     debug('set err %o', err)
-  //
-  //   debug('set %o', result)
-  // })
+  this.set('test', 'value', undefined, function(err, result){
+    if(err)
+      debug('set err %o', err)
+
+    debug('set %o', result)
+  })
+
+  this.set('test2', 'value2', undefined, function(err, result){
+    if(err)
+      debug('set err %o', err)
+
+    debug('set %o', result)
+  })
+
+  this.set(['test2', 'test3'], 'value2', undefined, function(err, result){
+    if(err)
+      debug('set err %o', err)
+
+    debug('set %o', result)
+  })
+
+  this.set(['test2', 'test3'], ['value2', 'value3'], undefined, function(err, result){
+    if(err)
+      debug('set err %o', err)
+
+    debug('set %o', result)
+  })
 
   this.get(undefined, function(err, result){
     if(err)

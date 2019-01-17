@@ -87,12 +87,24 @@ module.exports = new Class({
         if(Array.isArray(params.options._extras.id)){
           resp.toArray(function(err, arr){
             debug_internals('get_doc count', arr)
-
-
+            this.fireEvent(
+  						this[
+  							'ON_'+this.options.requests.current.type.toUpperCase()+'_DOC'
+  						],
+  						[arr, {id: this.id, type: params.options._extras.type, input_type: this, app: this}]
+  					)
           }.bind(this))
         }
         else{
           debug_internals('get_doc count single', resp)
+          this.fireEvent(
+            this[
+              'ON_'+this.options.requests.current.type.toUpperCase()+'_DOC'
+            ],
+            [resp, {id: this.id, type: params.options._extras.type, input_type: this, app: this}]
+          )
+
+
         }
 
       }

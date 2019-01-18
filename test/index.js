@@ -5,7 +5,27 @@ let debug = require('debug')('js-caching:Test'),
 
 let jscaching = require('../index')
 
-let cache = new jscaching({ suspended: false })
+let RethinkDBStoreIn = require('../libs/stores/rethinkdb').input
+let RethinkDBStoreOut = require('../libs/stores/rethinkdb').output
+
+let cache = new jscaching({
+  suspended: false,
+  stores: [
+    {
+      id: 'rethinkdb',
+      conn: [
+        {
+          host: 'elk',
+          port: 28015,
+          db: 'test',
+          table: 'cache',
+          module: RethinkDBStoreIn,
+        },
+      ],
+      module: RethinkDBStoreOut,
+    }
+  ],
+})
 
 cache.addEvent('onConnect', function(){
   debug_internals('onConnect')

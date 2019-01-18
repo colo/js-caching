@@ -240,6 +240,8 @@ module.exports = {
             resp.toArray(function(err, arr){
               debug_internals('get_doc count', arr)
 
+              arr = arr.reverse()
+              
               if(type == 'del'){//force deletion by setting expire = 0
                 Array.each(arr, function(d){
                   if(!d.metadata) d.metadata = {}

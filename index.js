@@ -148,6 +148,7 @@ module.exports = new Class({
           }
 
           if(_concat_key){
+            debug_internals('filter: _concat_key %s', _concat_key)
             _concat_key = uuidv5(_concat_key, pipeline.NS)
             output.key = _concat_key
 
@@ -190,11 +191,11 @@ module.exports = new Class({
 
           switch (type) {
             case 'get':
-              this.fireEvent(this.ON_INTERNAL_GET_OUTPUT, [err, doc.data])
+              this.fireEvent(this.ON_INTERNAL_GET_OUTPUT+'.'+doc.key, [err, doc.data])
               break;
 
             case 'del':
-              this.fireEvent(this.ON_INTERNAL_DEL_OUTPUT, [err, doc.data])
+              this.fireEvent(this.ON_INTERNAL_DEL_OUTPUT+'.'+doc.key, [err, doc.data])
               break;
 
             case 'prune':
@@ -253,7 +254,11 @@ module.exports = new Class({
         input.id = uuidv5(key, this.NS)
         _concat_key = key
       }
+      debug_internals('get: _concat_key %s', _concat_key)
+
       _concat_key = uuidv5(_concat_key, this.NS)
+
+
 
       _get[_concat_key] = function(err, result){
         debug_internals('_get %o %o', err, result)

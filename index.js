@@ -66,6 +66,28 @@ module.exports = new Class({
 
     ttl: 1000,
   },
+  clean: function(value){
+    if(!value || value == null || typeof value == 'function')
+      return undefined
+
+    else if(Array.isArray(value)){
+      Array.each(value, function(val, index){
+        value[index] = this.clean(val)
+      }.bind(this))
+      value = value.clean()
+    }
+    else if(typeof value === 'object' && Object.getLength(value) > 0){
+      Object.each(value, function(val, name){
+
+        val = this.clean(val)
+
+        if(!val)
+          delete value[name]
+      }.bind(this))
+    }
+
+    return value
+  },
   get: function(key, cb){
 
     if(!key){

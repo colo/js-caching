@@ -28,6 +28,7 @@ module.exports = [
                 err = {
                   status: 419,// Page Expired (Laravel Framework)
                   message: 'Expired',
+                  expired: d.metadata.expire,
                   data: []
                 }
 
@@ -57,6 +58,7 @@ module.exports = [
           err = {
             status: 419,// Page Expired (Laravel Framework)
             message: 'Expired',
+            expired: doc.metadata.expire,
             data: [{value: doc.data, key: doc.metadata.key }]
 
           }
